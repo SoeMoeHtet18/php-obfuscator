@@ -1,5 +1,5 @@
 {
-  "name": "passiongeekmm/laravel-obfuscator",
+  "name": "smhtet/laravel-obfuscator",
   "description": "Reversible identifier obfuscation for Laravel projects (obfuscate locally, deobfuscate on trusted server with same key).",
   "type": "library",
   "license": "MIT",
