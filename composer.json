@@ -1,0 +1,43 @@
+{
+  "name": "php/laravel-obfuscator",
+  "description": "Reversible identifier obfuscation for Laravel projects (obfuscate locally, deobfuscate on trusted server with same key).",
+  "type": "library",
+  "license": "MIT",
+  "keywords": ["laravel", "obfuscation", "security", "obfuscator", "php"],
+  "homepage": "https://github.com/passiongeekmm/laravel-obfuscator",
+  "authors": [
+    {
+      "name": "Passion Geek",
+      "email": "passiongeekmm@example.com",
+      "role": "developer"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/passiongeekmm/laravel-obfuscator/issues",
+    "source": "https://github.com/passiongeekmm/laravel-obfuscator"
+  },
+  "require": {
+    "php": "^8.2",
+    "nikic/php-parser": "^5.0",
+    "illuminate/console": "^10.0 || ^11.0 || ^12.0",
+    "illuminate/support": "^10.0 || ^11.0 || ^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Php\\LaravelObfuscator\\": "src/"
+    }
+  },
+  "bin": [
+    "bin/php-obfuscate"
+  ],
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Php\\LaravelObfuscator\\LaravelObfuscatorServiceProvider"
+      ]
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
+

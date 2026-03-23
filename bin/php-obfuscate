@@ -1,0 +1,204 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Php\LaravelObfuscator\ObfuscationCodec;
+use Php\LaravelObfuscator\PhpIdentifierObfuscator;
+
+// This script is intentionally framework-free so it can run on servers without booting Laravel.
+//
+// Usage:
+//   vendor/bin/php-obfuscate obfuscate "KEY" --root=/path/to/project --path=app --path=routes [--aggressive]
+//   vendor/bin/php-obfuscate deobfuscate "KEY" --root=/path/to/project --path=app --path=routes
+
+$autoloadCandidates = [
+    // When installed as vendor/Php/laravel-obfuscator.
+    __DIR__ . '/../../../autoload.php',
+    // When installed as a dependency.
+    __DIR__ . '/../vendor/autoload.php',
+    // When running from a mono-repo where the package itself is the project.
+    __DIR__ . '/../../autoload.php',
+    // Last resort: cwd vendor.
+    getcwd() . '/vendor/autoload.php',
+];
+
+foreach ($autoloadCandidates as $autoload) {
+    if (is_file($autoload)) {
+        require $autoload;
+        break;
+    }
+}
+
+if (!class_exists(ObfuscationCodec::class)) {
+    fwrite(STDERR, "Autoload not found. Run this via a Composer-installed project, e.g. vendor/bin/php-obfuscate ...\n");
+    exit(2);
+}
+
+[$cmd, $key, $root, $paths, $aggressive, $dryRun] = parseArgs($argv);
+
+if ($cmd === null || $key === null) {
+    fwrite(STDERR, "Usage:\n");
+    fwrite(STDERR, "  php-obfuscate obfuscate \"KEY\" --root=/path/to/project --path=app [--path=routes] [--aggressive] [--dry-run]\n");
+    fwrite(STDERR, "  php-obfuscate deobfuscate \"KEY\" --root=/path/to/project --path=app [--path=routes] [--dry-run]\n");
+    exit(2);
+}
+
+$root = $root ?? getcwd();
+$root = rtrim($root, DIRECTORY_SEPARATOR);
+
+if ($paths === []) {
+    $paths = ['app'];
+}
+
+$codec = new ObfuscationCodec($key);
+$obf = new PhpIdentifierObfuscator($codec, $aggressive);
+
+$files = listPhpFiles($root, $paths);
+$files = filterCommonExcluded($root, $files);
+
+fwrite(STDOUT, "Found " . count($files) . " PHP files\n");
+
+$changed = 0;
+$failed = 0;
+
+foreach ($files as $file) {
+    try {
+        $before = file_get_contents($file);
+        if (!is_string($before) || !str_starts_with(ltrim($before), '<?php')) {
+            continue;
+        }
+
+        $after = $cmd === 'obfuscate' ? $obf->obfuscate($before) : $obf->deobfuscate($before);
+        if ($after === $before) {
+            continue;
+        }
+
+        if ($dryRun) {
+            fwrite(STDOUT, "  Would write: " . rel($root, $file) . "\n");
+            continue;
+        }
+
+        file_put_contents($file, $after);
+        $changed++;
+        fwrite(STDOUT, "  " . ($cmd === 'obfuscate' ? 'Obfuscated: ' : 'Deobfuscated: ') . rel($root, $file) . "\n");
+    } catch (Throwable $e) {
+        $failed++;
+        fwrite(STDERR, "  Failed: " . rel($root, $file) . " (" . $e->getMessage() . ")\n");
+    }
+}
+
+if (!$dryRun && $cmd === 'obfuscate') {
+    file_put_contents($root . DIRECTORY_SEPARATOR . '.php_obfuscation_key_hash', hash('sha256', $key));
+}
+
+fwrite(STDOUT, "Changed " . $changed . " files\n");
+if ($failed > 0) {
+    fwrite(STDERR, "Failed " . $failed . " files (skipped)\n");
+    exit(1);
+}
+
+exit(0);
+
+function parseArgs(array $argv): array
+{
+    $cmd = $argv[1] ?? null;
+    if (!in_array($cmd, ['obfuscate', 'deobfuscate'], true)) {
+        $cmd = null;
+    }
+
+    $key = $argv[2] ?? null;
+    if (!is_string($key) || $key === '' || str_starts_with($key, '-')) {
+        $key = null;
+    }
+
+    $root = null;
+    $paths = [];
+    $aggressive = false;
+    $dryRun = false;
+
+    foreach ($argv as $i => $arg) {
+        if ($i < 3) {
+            continue;
+        }
+
+        if ($arg === '--aggressive') {
+            $aggressive = true;
+            continue;
+        }
+        if ($arg === '--dry-run') {
+            $dryRun = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--root=')) {
+            $root = substr($arg, 7);
+            continue;
+        }
+        if (str_starts_with($arg, '--path=')) {
+            $paths[] = substr($arg, 7);
+            continue;
+        }
+    }
+
+    return [$cmd, $key, $root, $paths, $aggressive, $dryRun];
+}
+
+function listPhpFiles(string $root, array $paths): array
+{
+    $files = [];
+
+    foreach ($paths as $rel) {
+        $path = $root . DIRECTORY_SEPARATOR . ltrim((string) $rel, DIRECTORY_SEPARATOR);
+        if (!is_dir($path)) {
+            continue;
+        }
+
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path));
+        foreach ($it as $file) {
+            if ($file->isFile() && strtolower($file->getExtension()) === 'php') {
+                $files[] = $file->getPathname();
+            }
+        }
+    }
+
+    sort($files);
+    return $files;
+}
+
+function filterCommonExcluded(string $root, array $files): array
+{
+    $root = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $excludedPrefixes = [
+        $root . 'vendor' . DIRECTORY_SEPARATOR,
+        $root . 'storage' . DIRECTORY_SEPARATOR,
+        $root . 'bootstrap' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR,
+        $root . '.git' . DIRECTORY_SEPARATOR,
+        $root . 'node_modules' . DIRECTORY_SEPARATOR,
+    ];
+
+    $out = [];
+    foreach ($files as $file) {
+        $skip = false;
+        foreach ($excludedPrefixes as $prefix) {
+            if (str_starts_with($file, $prefix)) {
+                $skip = true;
+                break;
+            }
+        }
+        if ($skip) {
+            continue;
+        }
+        $out[] = $file;
+    }
+
+    return $out;
+}
+
+function rel(string $root, string $path): string
+{
+    $root = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (str_starts_with($path, $root)) {
+        return substr($path, strlen($root));
+    }
+    return $path;
+}

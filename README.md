@@ -1,4 +1,4 @@
-# WinBit Laravel Obfuscator (Composer package)
+# Php Laravel Obfuscator (Composer package)
 
 This package provides reversible PHP identifier obfuscation for Laravel projects.
 
@@ -22,7 +22,7 @@ Add it as a path repository (for local dev in this mono-repo):
     }
   ],
   "require": {
-    "winbit/laravel-obfuscator": "*"
+    "Php/laravel-obfuscator": "*"
   }
 }
 ```
@@ -30,15 +30,15 @@ Add it as a path repository (for local dev in this mono-repo):
 Then:
 
 ```bash
-composer update winbit/laravel-obfuscator
+composer update Php/laravel-obfuscator
 ```
 
 Laravel auto-discovers the service provider. If you have discovery disabled, register:
-`WinBit\LaravelObfuscator\LaravelObfuscatorServiceProvider`.
+`Php\LaravelObfuscator\LaravelObfuscatorServiceProvider`.
 
 ## Use (Artisan)
 
-Obfuscate (writes `.wb_obfuscation_key_hash`):
+Obfuscate (writes `.php_obfuscation_key_hash`):
 
 ```bash
 php artisan code:obfuscate "YOUR_KEY" --path=app
@@ -59,8 +59,8 @@ Options
 ## Use (vendor/bin CLI, no Laravel boot)
 
 ```bash
-vendor/bin/wb-obfuscate obfuscate "YOUR_KEY" --root=/path/to/project --path=app --path=routes
-vendor/bin/wb-obfuscate deobfuscate "YOUR_KEY" --root=/path/to/project --path=app --path=routes
+vendor/bin/php-obfuscate obfuscate "YOUR_KEY" --root=/path/to/project --path=app --path=routes
+vendor/bin/php-obfuscate deobfuscate "YOUR_KEY" --root=/path/to/project --path=app --path=routes
 ```
 
 # php-obfuscator
